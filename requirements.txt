@@ -1,0 +1,4 @@
+rich>=13.0.0
+pandas>=2.3.3
+pyarrow==22.0.0
+numpy>=2.3.5
