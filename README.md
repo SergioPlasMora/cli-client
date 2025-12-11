@@ -28,4 +28,4 @@ python cli.py query --tenant tenant_sergio --dataset dataset_50mb
 python cli.py query --tenant tenant_sergio --dataset dataset_100mb
 
 # CSV de 10MB con 50 usuarios intentando descargar a la vez (100 descargas):
-python cli.py load-test --requests 100 --concurrency 50 --dataset dataset_10mb --tenants-list tenant_sergio
+python cli.py load-test --requests 1000 --concurrency 1 --dataset dataset_1mb --tenants-list tenant_sergio
