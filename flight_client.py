@@ -67,15 +67,12 @@ class ArrowFlightClient:
             t1 = time.perf_counter()
             metrics.metadata_latency_ms = (t1 - t0) * 1000
             
-            # Unpack info
+            # 2. Do Get - usar solo el primer endpoint (round-robin en gateway)
+            # El paralelismo viene del load test (1000 requests concurrentes)
             endpoint = info.endpoints[0]
-            ticket = endpoint.ticket
             
-            # 2. Do Get (Stream)
             t2 = time.perf_counter()
-            reader = self.get_dataset_stream(ticket)
-            
-            # Leer toda la tabla
+            reader = self.get_dataset_stream(endpoint.ticket)
             table = reader.read_all()
             t3 = time.perf_counter()
             

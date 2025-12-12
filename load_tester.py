@@ -29,13 +29,19 @@ class LoadTester:
         self.results = []
         self._lock = threading.Lock()
         
-    def _worker(self, tenant_id: str, dataset: str, count: int, rows: int = None):
-        """Worker thread function"""
+    def _single_request(self, tenant_id: str, dataset: str, rows: int = None):
+        """
+        Ejecuta UNA sola request con su PROPIA conexión gRPC.
+        
+        IGUAL QUE SSE: Cada request abre su propia conexión independiente.
+        Esto permite paralelismo real a nivel de red (no multiplexación).
+        """
+        # Crear nuevo cliente con conexión independiente para cada request
         client = ArrowFlightClient(self.gateway_uri)
-        for _ in range(count):
-            res = client.query_dataset(tenant_id, dataset, rows=rows)
-            with self._lock:
-                self.results.append(res)
+        res = client.query_dataset(tenant_id, dataset, rows=rows)
+        with self._lock:
+            self.results.append(res)
+        return res
                 
     def run_load_test(self, 
                       total_requests: int, 
@@ -44,26 +50,23 @@ class LoadTester:
                       rows: int = None) -> LoadTestResult:
         """
         Ejecuta prueba de carga usando ThreadPoolExecutor.
-        (Arrow Flight client es sincrono bloqueante, por eso threads)
+        IMPORTANTE: Cada request es un task independiente para máxima concurrencia.
         """
         start_time = time.time()
         self.results = []
         
-        reqs_per_tenant = total_requests // len(tenants)
-        remainder = total_requests % len(tenants)
-        
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.concurrency) as executor:
             futures = []
             
-            # Distribuir carga entre tenants
-            for i, tenant in enumerate(tenants):
-                count = reqs_per_tenant + (1 if i < remainder else 0)
-                if count > 0:
-                    futures.append(
-                        executor.submit(self._worker, tenant, dataset, count, rows)
-                    )
+            # CLAVE: Cada request individual es un task independiente
+            # Esto permite que el ThreadPoolExecutor maneje la concurrencia real
+            for i in range(total_requests):
+                tenant = tenants[i % len(tenants)]  # Round-robin entre tenants
+                futures.append(
+                    executor.submit(self._single_request, tenant, dataset, rows)
+                )
             
-            # Esperar a que terminen
+            # Esperar a que terminen todas las requests
             concurrent.futures.wait(futures)
             
         duration = time.time() - start_time
